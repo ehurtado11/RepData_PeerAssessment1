@@ -1,0 +1,115 @@
+---
+title: "Reproducible Research Project 1"
+author: "Esther Hurtado"
+date: "06/03/2020"
+output: 
+  html_document: 
+  keep_md: true 
+---
+##Introduction
+It is now possible to collect a large amount of data about personal movement using activity monitoring devices such as a Fitbit, Nike Fuelband, or Jawbone Up. These type of devices are part of the "quantified self" movement -- a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. But these data remain under-utilized both because the raw data are hard to obtain and there is a lack of statistical methods and software for processing and interpreting the data. This assignment makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
+
+##Data Set
+The data for this assignment can be downloaded from the course web site:
+#Dataset: [Activity monitoring data](https://github.com/ehurtado11/RepData_PeerAssessment1) 
+
+##Assignment
+This assignment will be described in multiple parts. You will need to write a report that answers the questions detailed below. Ultimately, you will need to complete the entire assignment in a single R markdown document that can be processed by knitr and be transformed into an HTML file.
+
+##Loading and preprocessing the data
+```{r}
+
+# import data
+activity <- read.csv("activity.csv")
+
+# libraries
+library(ggplot2)
+library(dplyr)  
+library(knitr)
+Sys.setlocale("LC_TIME", "C")
+
+# variables info
+str(activity)  
+```
+##What is mean total number of steps taken per day?
+```{r}
+# create and print number of steps per day data set
+StepsPerDay <- aggregate(activity$steps, list(activity$date), FUN=sum)
+colnames(StepsPerDay) <- c("Date", "Steps")
+StepsPerDay
+
+# draw the histogram from hw requirment
+g <- ggplot(StepsPerDay, aes(Steps))
+g+geom_histogram(boundary=0, binwidth=2500, col="gray1", fill="lightpink1")+ggtitle("Histogram of Steps Per Day Taken")+xlab("Steps")+ylab("Frequency")+theme(plot.title = element_text(face="bold", size=12))+scale_x_continuous(breaks=seq(0,25000,2500))+scale_y_continuous(breaks=seq(0,18,2))
+
+# mean
+mean(StepsPerDay$Steps, na.rm=TRUE)
+
+# median
+median(StepsPerDay$Steps, na.rm=TRUE)
+```
+
+##What is the average daily activity pattern?
+```{r}
+# create table with steps per time
+StepsPerTime <- aggregate(steps~interval,data=activity,FUN=mean,na.action=na.omit)
+
+# variable time 
+StepsPerTime$time <- StepsPerTime$interval/100
+
+# draw the line plot
+h <- ggplot(StepsPerTime, aes(time, steps))
+h+geom_line(col="gray1")+ggtitle("Average steps per time interval")+xlab("Time")+ylab("Steps")+theme(plot.title = element_text(face="bold", size=12))
+
+# table for dplyr
+ST <- tbl_df(StepsPerTime)
+
+# find the column
+ST %>% select(time, steps) %>% filter(steps==max(ST$steps))
+```
+##inputing missing values
+```{r}
+# table for dplyr
+ACT <- tbl_df(activity)
+# find the column
+ACT %>% filter(is.na(steps)) %>% summarize(missing_values = n())
+# values without NA are imputed in a new column
+activity$CompleteSteps <- ifelse(is.na(activity$steps), round(StepsPerTime$steps[match(activity$interval, StepsPerTime$interval)],0), activity$steps)
+
+# new dataset activityFull
+activityFull <- data.frame(steps=activity$CompleteSteps, interval=activity$interval, date=activity$date)
+# see first 10 values of the new dataset
+head(activityFull, n=10)
+
+# prepare data
+StepsPerDayFull <- aggregate(activityFull$steps, list(activityFull$date), FUN=sum)
+colnames(StepsPerDayFull) <- c("Date", "Steps")
+# draw the histogram
+g <- ggplot(StepsPerDayFull, aes(Steps))
+g+geom_histogram(boundary=0, binwidth=2500, col="gray1", fill="maroon")+ggtitle("Histogram of steps (per day)")+xlab("Steps")+ylab("Frequency")+theme(plot.title = element_text(face="bold", size=12))+scale_x_continuous(breaks=seq(0,25000,2500))+scale_y_continuous(breaks=seq(0,26,2))
+
+# Mean
+mean(StepsPerDayFull$Steps)
+
+#Median
+median(StepsPerDayFull$Steps)
+```
+##Are there differences in activity patterns between weekdays and weekends?
+```{r}
+# Create variable with date in correct format
+activityFull$RealDate <- as.Date(activityFull$date, format = "%Y-%m-%d")
+# create a variable with weekdays name
+activityFull$weekday <- weekdays(activityFull$RealDate)
+# create a new variable indicating weekday or weekend
+activityFull$DayType <- ifelse(activityFull$weekday=='Saturday' | activityFull$weekday=='Sunday', 'weekend','weekday')
+# see first 10 values
+head(activityFull, n=10)
+
+# create table with steps per time across weekdaydays or weekend days
+StepsPerTimeDT <- aggregate(steps~interval+DayType,data=activityFull,FUN=mean,na.action=na.omit)
+# variable time (more comprensible for the graph axis)
+StepsPerTimeDT$time <- StepsPerTime$interval/100
+# draw the line plot
+j <- ggplot(StepsPerTimeDT, aes(time, steps))
+j+geom_line(col="darkred")+ggtitle("Average Steps (per time interval): Weekdays vs. Weekends")+xlab("Time")+ylab("Steps")+theme(plot.title = element_text(face="bold", size=12))+facet_grid(DayType ~ .)
+```
